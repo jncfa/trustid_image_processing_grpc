@@ -1,0 +1,4 @@
+depends/dlib
+depends/opencv
+out/
+build/

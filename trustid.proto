@@ -1,0 +1,105 @@
+syntax = "proto3";
+package trustid.grpc;
+
+// Image data
+// This should contain enough data to be able to convert it in C++
+message OCVImage {
+    int32 type = 1;
+    int64 step = 2;
+    int32 width = 3;
+    int32 height = 4;
+    bytes data = 5;
+}
+
+// The next definitions are just placeholders, as these will likely be changed in a next version, but you don't interact with any of them directly so you won't need to make changes
+// All of the information is exposed via the message request/response itself, and you'll always use information that has been sent to you to issue new requests
+
+// Face Verification model data
+message TRUSTIDFaceVerificationModel {
+    bytes DlibSerializedData = 1;
+}
+
+// Detection result, this contains the bounding boxes and raw image
+
+
+
+
+
+message FaceDetectionResult {
+    bytes DlibSerializedData = 1;
+}
+
+// Estimated head pose data
+message HeadPoseResult{
+    bytes DlibSerializedData = 1;
+}
+
+///////////////////////////
+// The next definitions contain the messages you will be using in the Grpc calls
+
+service TRUSTIDClientProcessor {
+    rpc DetectFaces(DetectFacesRequest) returns (DetectFacesResponse);
+    rpc VerifyFace(VerifyFaceRequest) returns (VerifyFaceResponse);
+    rpc LoadVerificationData(LoadDataRequest) returns (LoadDataResponse);
+    rpc EstimateHeadPose(EstimateHeadPoseRequest) returns (EstimateHeadPoseResponse);
+    rpc CheckImageQuality(CheckImageQualityRequest) returns (CheckImageQualityResponse);
+    rpc BuildModel(BuildModelRequest) returns (BuildModelResponse);
+}
+
+message LoadDataRequest {
+    TRUSTIDFaceVerificationModel ModelData = 1;
+}
+
+// Returns boolean which is used to tell if the model was loaded correctly or not.
+message LoadDataResponse {
+    bool result = 1;
+}
+
+message DetectFacesRequest {
+    OCVImage image = 1;
+}
+
+// the result string will be one of the following: "NO_RESULTS", "ONE_RESULT", "MULTIPLE_RESULTS";
+message DetectFacesResponse {
+    string result = 1;
+    repeated FaceDetectionResult detectionResults = 2;
+}
+
+message VerifyFaceRequest {
+    FaceDetectionResult previousDetection = 1;
+}
+
+// the result string will be one of the following: "SAME_USER", "DIFFERENT_USER", "UNKNOWN";
+message VerifyFaceResponse {
+    string result = 1;
+    double confidenceScore = 2;
+}
+
+message EstimateHeadPoseRequest{
+    FaceDetectionResult detectionResult = 1;
+}
+
+// the result string will be one of the following: "LEFT_FACING", "RIGHT_FACING", "UPWARD_FACING", "DOWNWARD_FACING", "FORWARD_FACING" 
+message EstimateHeadPoseResponse{
+    string result = 1;
+    HeadPoseResult headPoseData = 2;
+}
+
+message CheckImageQualityRequest{
+    OCVImage imageToCheck = 1;
+}
+
+// the result string will be one of the following: "LOW_CONTRAST", "HIGH_CONTRAST", "UNKNOWN";
+message CheckImageQualityResponse{
+    string result = 1;
+}
+
+message BuildModelRequest{
+    repeated FaceDetectionResult detectionResults = 1;
+}
+
+// the result string will be one of the following: "MODEL_BUILT", "ERR_MODEL_NOT_BUILT";
+message BuildModelResponse{
+    string result = 1;
+    TRUSTIDFaceVerificationModel model = 2;
+}
