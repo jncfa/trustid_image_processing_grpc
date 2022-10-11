@@ -46,33 +46,45 @@ class TRUSTIDClientProcessorImpl final
   Status DetectFaces(::grpc::ServerContext *context,
                      const ::trustid::grpc::DetectFacesRequest *request,
                      ::trustid::grpc::DetectFacesResponse *response) override {
-    cv::Mat image = deserialize_from_grpc(request->image());
 
-    auto result = clientProcessor.detectFaces(image);
-    
-    for (auto entry: result.getBoundingBoxEntries()){
-      std::ostringstream ss;
-      dlib::serialize(ss) << entry;
-      auto detectionResult= response->add_detectionresults();
-      detectionResult->set_dlibserializeddata(ss.str());
+    try { 
+      std::cout << "Received DetectFace RPC" << std::endl;
+      std::cout << "Image size: " << request->image().data().size() << std::endl;
+      cv::Mat image = deserialize_from_grpc(request->image());
+      //cv::imshow("Live", image);
+      //cv::waitKey(0);
+
+      auto result = clientProcessor.detectFaces(image);
+      
+      for (auto entry: result.getBoundingBoxEntries()){
+        std::ostringstream ss;
+        dlib::serialize(ss) << entry;
+        auto detectionResult= response->add_detectionresults();
+        detectionResult->set_dlibserializeddata(ss.str());
+      }
+
+      switch (result.getResult()) {
+        case trustid::image::FaceDetectionResultValueEnum::NO_RESULTS:
+          response->set_result("NO_RESULTS");
+          break;
+        case trustid::image::FaceDetectionResultValueEnum::ONE_RESULT:
+          response->set_result("ONE_RESULT");
+          break;
+        case trustid::image::FaceDetectionResultValueEnum::MULTIPLE_RESULTS:
+          response->set_result("MULTIPLE_RESULTS");
+          break;
+        default:
+          throw std::runtime_error("Unknown result");
+          break;
+      }
+
+      std::cout << "Processed DetectFace RPC" << std::endl;
+      return Status::OK;
     }
-
-    switch (result.getResult()) {
-      case trustid::image::FaceDetectionResultValueEnum::NO_RESULTS:
-        response->set_result("NO_RESULTS");
-        break;
-      case trustid::image::FaceDetectionResultValueEnum::ONE_RESULT:
-        response->set_result("ONE_RESULT");
-        break;
-      case trustid::image::FaceDetectionResultValueEnum::MULTIPLE_RESULTS:
-        response->set_result("MULTIPLE_RESULTS");
-
-        break;
-      default:
-        throw std::runtime_error("Unknown result");
-        break;
+    catch (std::exception &e){
+      std::cerr << e.what() << std::endl;
+      return Status::CANCELLED;
     }
-    return Status::OK;
   }
 
   Status VerifyFace(::grpc::ServerContext *context,
@@ -88,12 +100,15 @@ class TRUSTIDClientProcessorImpl final
     switch (result.getResult()) {
       case trustid::image::FaceVerificationResultEnum::SAME_USER:
         response->set_result("SAME_USER");
+        response->set_confidencescore(result.getMatchConfidence());
         break;
       case trustid::image::FaceVerificationResultEnum::DIFFERENT_USER:
         response->set_result("DIFFERENT_USER");
+        response->set_confidencescore(result.getMatchConfidence());
         break;
       default:
         response->set_result("UNKNOWN");
+        response->set_confidencescore(result.getMatchConfidence());
         throw std::runtime_error("Unknown result");
     }
     return Status::OK;

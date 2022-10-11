@@ -30,7 +30,6 @@ cv::Mat deserialize_from_grpc(const trustid::grpc::OCVImage in, bool copyData = 
     return cv::Mat(in.height(), in.width(), in.type(), std::move(data), in.step());
   }
   else{
-    
     return cv::Mat(in.height(), in.width(), in.type(), (void*)in.data().c_str(), in.step());
   }
 }

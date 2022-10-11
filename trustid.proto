@@ -72,6 +72,7 @@ message VerifyFaceRequest {
 // the result string will be one of the following: "SAME_USER", "DIFFERENT_USER", "UNKNOWN";
 message VerifyFaceResponse {
     string result = 1;
+    double confidenceScore = 2;
 }
 
 message EstimateHeadPoseRequest{
