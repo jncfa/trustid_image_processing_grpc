@@ -4,6 +4,8 @@
 #include "trustid.grpc.pb.h"
 #include "opencv2/opencv.hpp"
 
+typedef void* PVOID;
+
 trustid::grpc::OCVImage* serialize_to_grpc(const cv::Mat item, trustid::grpc::OCVImage* image, bool copyData = true) {
     // check if we should copy the data or not
     if (copyData){

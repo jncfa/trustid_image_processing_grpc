@@ -121,8 +121,14 @@ project(trustid-image-processing-grpc C CXX)
 #   DEPENDS c-ares protobuf re2 zlib absl
 # )
 #add_subdirectory("C:/Users/jncfa/source/grpc/" grpc)
-set(GRPC_AS_SUBMODULE 1)
-include(common.cmake)
+#set(GRPC_AS_SUBMODULE 1)
+#include(common.cmake)
+
+set(OPENSSL_ROOT_DIR "/usr/local/Cellar/openssl@1.1/1.1.1q/")
+
+find_package(gRPC REQUIRED)
+find_package(Protobuf REQUIRED)
+
 # Build the helloworld projects itself using a CMakeLists.txt that assumes all the dependencies
 # have already been installed.
 # Even though helloworld is not really an "external project" from perspective of this build,
@@ -141,59 +147,28 @@ set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/TRUSTID.pb.cc")
 set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/TRUSTID.pb.h")
 set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/TRUSTID.grpc.pb.cc")
 set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/TRUSTID.grpc.pb.h")
-message(${_PROTOBUF_PROTOC}) 
-message(${_GRPC_CPP_PLUGIN_EXECUTABLE}) 
+message(protobuf::protoc)
+message(gRPC::grpc_cpp_plugin)
 message(${CMAKE_CURRENT_BINARY_DIR})
-#get_target_property(grpc_cpp_plugin_location grpc_cpp_plugin LOCATION)
+get_target_property(grpc_cpp_plugin_location gRPC::grpc_cpp_plugin LOCATION)
+message(${grpc_cpp_plugin_location})
 
 add_custom_command(
       OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
-      COMMAND ${_PROTOBUF_PROTOC}
+      COMMAND protobuf::protoc
       ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
         --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
         -I "${hw_proto_path}"
-        --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+        --plugin=protoc-gen-grpc=${grpc_cpp_plugin_location}
         "${hw_proto}"
       DEPENDS "${hw_proto}")
 
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(trustid-image-processing-grpc-simpleserver "grpc-simpleserver.cc" ${hw_proto_srcs} ${hw_grpc_srcs})
-target_include_directories(trustid-image-processing-grpc-simpleserver PUBLIC "includes" ${OpenCV_INCLUDE_DIRS}  ${hw_proto_hdrs} ${hw_grpc_hdrs})
-target_link_libraries( trustid-image-processing-grpc-simpleserver PUBLIC dlib trustid-image-processing-lib ${OpenCV_LIBS} grpc++ grpc++_reflection gpr grpc grpc++ protobuf::libprotoc protobuf::libprotobuf )
+target_include_directories(trustid-image-processing-grpc-simpleserver PRIVATE "includes" ${OpenCV_INCLUDE_DIRS}  ${hw_proto_hdrs} ${hw_grpc_hdrs})
+target_link_libraries( trustid-image-processing-grpc-simpleserver PRIVATE dlib trustid-image-processing-lib ${OpenCV_LIBS} gRPC::grpc++ gRPC::grpc++_reflection gRPC::gpr gRPC::grpc gRPC::grpc++ protobuf::libprotoc protobuf::libprotobuf )
 
-add_executable(trustid-image-processing-grpc-simpleclient "grpc-simpleclient.cc" ${hw_proto_srcs} ${hw_grpc_srcs} "DeviceEnumerator.cpp")
-target_include_directories(trustid-image-processing-grpc-simpleserver PUBLIC "includes" ${OpenCV_INCLUDE_DIRS} ${hw_proto_hdrs} ${hw_grpc_hdrs})
-target_link_libraries( trustid-image-processing-grpc-simpleclient PUBLIC dlib trustid-image-processing-lib dlib ${OpenCV_LIBS} grpc++ grpc++_reflection gpr grpc protobuf::libprotoc protobuf::libprotobuf )
-set(OpenCV_DIR ../trustid_image_processing_win/depends/opencv/build)
-find_package(OpenCV REQUIRED )
-
-# Copy opencv_world.dll to the same directory as the executable
-get_target_property(_opencv_dll_dbg opencv_world IMPORTED_LOCATION_DEBUG)
-get_target_property(_opencv_dll_release opencv_world  IMPORTED_LOCATION_RELEASE)
-
-add_custom_command(TARGET trustid-image-processing-grpc-simpleserver POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_if_different           # which executes "cmake - E copy_if_different..."
-"$<$<CONFIG:debug>:${_opencv_dll_dbg}>$<$<CONFIG:release>:${_opencv_dll_release}>"      # <--this is in-file
-$<TARGET_FILE_DIR:trustid-image-processing-grpc-simpleserver>                        # <--this is out-file path
-)
-
-# Copy zlib.dll to the same directory as the executable
-# get_filename_component( ZLIB_LIBDIR "${ZLIB_LIBRARY}" PATH )
-# get_filename_component ( ZLIB_BASENAME "${ZLIB_LIBRARY}" NAME_WE )
-# get_filename_component ( ZLIB_LIBDIR_BASE "${ZLIB_LIBDIR}" PATH )
-
-# find_file ( ZLIB_DLL
-# "${CMAKE_SHARED_LIBRARY_PREFIX}${ZLIB_BASENAME}${CMAKE_SHARED_LIBRARY_SUFFIX}"
-#   HINTS
-#     "${ZLIB_LIBDIR_BASE}"
-#   PATH_SUFFIXES
-#     bin
-#   NO_DEFAULT_PATH
-# )
-
-# add_custom_command(TARGET trustid-image-processing-grpc-simpleserver POST_BUILD
-# COMMAND ${CMAKE_COMMAND} -E copy_if_different           # which executes "cmake - E copy_if_different..."
-# "$<$<CONFIG:debug>:${ZLIB_DLL}>$<$<CONFIG:release>:${ZLIB_DLL}>"      # <--this is in-file
-# $<TARGET_FILE_DIR:trustid-image-processing-grpc-simpleserver>                        # <--this is out-file path
-# )
+add_executable(trustid-image-processing-grpc-simpleclient "grpc-simpleclient.cc" ${hw_proto_srcs} ${hw_grpc_srcs})
+target_include_directories(trustid-image-processing-grpc-simpleserver PRIVATE "includes" ${OpenCV_INCLUDE_DIRS} ${hw_proto_hdrs} ${hw_grpc_hdrs})
+target_link_libraries( trustid-image-processing-grpc-simpleclient PRIVATE dlib trustid-image-processing-lib dlib ${OpenCV_LIBS} gRPC::grpc++ gRPC::grpc++_reflection gRPC::gpr gRPC::grpc protobuf::libprotoc protobuf::libprotobuf )

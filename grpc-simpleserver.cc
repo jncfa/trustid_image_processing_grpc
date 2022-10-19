@@ -91,10 +91,10 @@ class TRUSTIDClientProcessorImpl final
                     const ::trustid::grpc::VerifyFaceRequest *request,
                     ::trustid::grpc::VerifyFaceResponse *response) override {
     std::cout << "ReceivedVerifyFace RPC" << std::endl;
-
+      std::istringstream ss(
+                         request->previousdetection().dlibserializeddata());
     trustid::image::FaceDetectionResultEntry parsedRequest;
-    dlib::deserialize(std::istringstream(
-        request->previousdetection().dlibserializeddata())) >>
+    dlib::deserialize(ss) >>
         parsedRequest;
     auto result = clientProcessor.verifyUser(parsedRequest);
     switch (result.getResult()) {
@@ -119,10 +119,10 @@ class TRUSTIDClientProcessorImpl final
       const ::trustid::grpc::LoadDataRequest *request,
       ::trustid::grpc::LoadDataResponse *response) override {
     std::cout << "Received LoadVerificationData RPC" << std::endl;
-   
+      std::stringstream ss(request->modeldata().dlibserializeddata());
     trustid::image::impl::DlibFaceVerificatorConfig config;
     dlib::deserialize(
-        std::stringstream(request->modeldata().dlibserializeddata())) >>
+        ss) >>
         config;
     clientProcessor.loadFaceVerificationData(config);
     response->set_result(true);
@@ -181,8 +181,9 @@ class TRUSTIDClientProcessorImpl final
         faceEntryVector.reserve(request->detectionresults_size());
 
         for (auto& entry : request->detectionresults()) {
+            std::stringstream ss(entry.dlibserializeddata());
           trustid::image::FaceDetectionResultEntry faceEntry;
-          dlib::deserialize(std::stringstream(entry.dlibserializeddata())) >> faceEntry;
+          dlib::deserialize(ss) >> faceEntry;
           faceEntryVector.push_back(faceEntry); 
         }
         

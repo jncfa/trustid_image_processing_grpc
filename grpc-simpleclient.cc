@@ -30,7 +30,7 @@
 #include "trustid_image_processing/dlib_impl/face_verificator.h"
 #include "trustid_image_processing/face_detector.h"
 #include "trustid_image_processing/face_verificator.h"
-#include "DeviceEnumerator.h"
+//#include "DeviceEnumerator.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -78,7 +78,8 @@ class TRUSTIDClientImpl {
 
     for (auto& entry : reply.detectionresults()) {
       trustid::image::FaceDetectionResultEntry faceEntry;
-      dlib::deserialize(std::stringstream(entry.dlibserializeddata())) >>
+        std::stringstream ss(entry.dlibserializeddata());
+      dlib::deserialize(ss) >>
           faceEntry;
       faceEntryVector.push_back(faceEntry.getFaceDetBoundingBox());
     }
@@ -158,8 +159,9 @@ class TRUSTIDClientImpl {
     trustid::image::impl::DlibFaceVerificatorConfig config;
     // Act upon its status.
     if (status.ok()) {
+        std::stringstream ss(reply.model().dlibserializeddata());
       dlib::deserialize(
-          std::stringstream(reply.model().dlibserializeddata())) >>
+          ss) >>
           config;
       return config;
     } else {
@@ -216,7 +218,7 @@ int main(int argc, char** argv) {
   // We indicate that the channel isn't authenticated (use of
   // InsecureChannelCredentials()).
 
-  std::string camera_name;
+  std::string camera_name="0";
   int camera_index = 0;
   std::string target_str = "localhost:50051";
   std::string arg_str("--cap");
@@ -240,15 +242,16 @@ int main(int argc, char** argv) {
   } else {
     target_str = "localhost:50051";
   }
-
-  DeviceEnumerator enumerator;
-  std::cerr << "\nListing all available cameras:" << std::endl;
-  for (auto device : enumerator.getVideoDevicesMap()){
-    std::cout << device.first << " " << device.second.id << " " << device.second.deviceName << " " << device.second.devicePath << std::endl;
-    if (camera_name != "" && device.second.deviceName == camera_name){
-      camera_index = device.second.id;
-    }
-  }
+    camera_index=std::stoi(camera_name);
+    	
+  //DeviceEnumerator enumerator;
+  //std::cerr << "\nListing all available cameras:" << std::endl;
+  //for (auto device : enumerator.getVideoDevicesMap()){
+  //  std::cout << device.first << " " << device.second.id << " " << device.second.deviceName << " " << device.second.devicePath << std::endl;
+  //  if (camera_name != "" && device.second.deviceName == camera_name){
+  //    camera_index = device.second.id;
+  //  }
+  //}
   std::cout<< "\nCamera to use: " << camera_name << std::endl;
   
   grpc::ChannelArguments args;
