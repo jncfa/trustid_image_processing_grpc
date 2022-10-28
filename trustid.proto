@@ -40,19 +40,10 @@ message HeadPoseResult{
 service TRUSTIDClientProcessor {
     rpc DetectFaces(DetectFacesRequest) returns (DetectFacesResponse);
     rpc VerifyFace(VerifyFaceRequest) returns (VerifyFaceResponse);
-    rpc LoadVerificationData(LoadDataRequest) returns (LoadDataResponse);
-    rpc EstimateHeadPose(EstimateHeadPoseRequest) returns (EstimateHeadPoseResponse);
-    rpc CheckImageQuality(CheckImageQualityRequest) returns (CheckImageQualityResponse);
+    //rpc LoadVerificationData(LoadDataRequest) returns (LoadDataResponse);
+    //rpc EstimateHeadPose(EstimateHeadPoseRequest) returns (EstimateHeadPoseResponse);
+    //rpc CheckImageQuality(CheckImageQualityRequest) returns (CheckImageQualityResponse);
     rpc BuildModel(BuildModelRequest) returns (BuildModelResponse);
-}
-
-message LoadDataRequest {
-    TRUSTIDFaceVerificationModel ModelData = 1;
-}
-
-// Returns boolean which is used to tell if the model was loaded correctly or not.
-message LoadDataResponse {
-    bool result = 1;
 }
 
 message DetectFacesRequest {
@@ -67,31 +58,13 @@ message DetectFacesResponse {
 
 message VerifyFaceRequest {
     FaceDetectionResult previousDetection = 1;
+    TRUSTIDFaceVerificationModel modelData = 2;
 }
 
 // the result string will be one of the following: "SAME_USER", "DIFFERENT_USER", "UNKNOWN";
 message VerifyFaceResponse {
     string result = 1;
     double confidenceScore = 2;
-}
-
-message EstimateHeadPoseRequest{
-    FaceDetectionResult detectionResult = 1;
-}
-
-// the result string will be one of the following: "LEFT_FACING", "RIGHT_FACING", "UPWARD_FACING", "DOWNWARD_FACING", "FORWARD_FACING" 
-message EstimateHeadPoseResponse{
-    string result = 1;
-    HeadPoseResult headPoseData = 2;
-}
-
-message CheckImageQualityRequest{
-    OCVImage imageToCheck = 1;
-}
-
-// the result string will be one of the following: "LOW_CONTRAST", "HIGH_CONTRAST", "UNKNOWN";
-message CheckImageQualityResponse{
-    string result = 1;
 }
 
 message BuildModelRequest{
@@ -101,5 +74,24 @@ message BuildModelRequest{
 // the result string will be one of the following: "MODEL_BUILT", "ERR_MODEL_NOT_BUILT";
 message BuildModelResponse{
     string result = 1;
-    TRUSTIDFaceVerificationModel model = 2;
+    TRUSTIDFaceVerificationModel modelData = 2;
 }
+
+//message EstimateHeadPoseRequest{
+//    FaceDetectionResult detectionResult = 1;
+//}
+
+// the result string will be one of the following: "LEFT_FACING", "RIGHT_FACING", "UPWARD_FACING", "DOWNWARD_FACING", "FORWARD_FACING" 
+//message EstimateHeadPoseResponse{
+//    string result = 1;
+//    HeadPoseResult headPoseData = 2;
+//}
+
+//message CheckImageQualityRequest{
+//    OCVImage imageToCheck = 1;
+//}
+
+// the result string will be one of the following: "LOW_CONTRAST", "HIGH_CONTRAST", "UNKNOWN";
+//message CheckImageQualityResponse{
+//    string result = 1;
+//}

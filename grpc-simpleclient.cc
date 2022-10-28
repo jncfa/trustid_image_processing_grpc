@@ -30,7 +30,7 @@
 #include "trustid_image_processing/dlib_impl/face_verificator.h"
 #include "trustid_image_processing/face_detector.h"
 #include "trustid_image_processing/face_verificator.h"
-#include "DeviceEnumerator.h"
+//#include "DeviceEnumerator.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -42,8 +42,6 @@ using grpc::ClientContext;
 using grpc::Status;
 
 using trustid::grpc::BuildModelRequest;
-using trustid::grpc::CheckImageQualityRequest;
-using trustid::grpc::LoadDataRequest;
 using trustid::grpc::TRUSTIDClientProcessor;
 using trustid::grpc::VerifyFaceRequest;
 using trustid::grpc::VerifyFaceResponse;
@@ -78,7 +76,8 @@ class TRUSTIDClientImpl {
 
     for (auto& entry : reply.detectionresults()) {
       trustid::image::FaceDetectionResultEntry faceEntry;
-      dlib::deserialize(std::stringstream(entry.dlibserializeddata())) >>
+      std::stringstream ss(entry.dlibserializeddata());
+      dlib::deserialize(ss) >>
           faceEntry;
       faceEntryVector.push_back(faceEntry.getFaceDetBoundingBox());
     }
@@ -97,7 +96,8 @@ class TRUSTIDClientImpl {
   }
 
   trustid::image::FaceVerificationResultEnum VerifyFace(
-      const trustid::image::FaceDetectionResultEntry& detectionEntry) {
+      const trustid::image::FaceDetectionResultEntry& detectionEntry, 
+      const trustid::image::impl::DlibFaceVerificatorModelParams& modelData) {
     // Data we are sending to the server.
 
     trustid::grpc::VerifyFaceRequest request;
@@ -106,6 +106,11 @@ class TRUSTIDClientImpl {
     dlib::serialize(ss) << detectionEntry;
     request.mutable_previousdetection()->set_dlibserializeddata(ss.str());
 
+    std::stringstream ss1;
+    dlib::serialize(ss1) << modelData;
+    request.mutable_modeldata()->set_dlibserializeddata(ss1.str());
+    
+    
     // Container for the data we expect from the server.
     trustid::grpc::VerifyFaceResponse reply;
 
@@ -133,7 +138,7 @@ class TRUSTIDClientImpl {
     }
   }
 
-  trustid::image::impl::DlibFaceVerificatorConfig BuildModel(
+  trustid::image::impl::DlibFaceVerificatorModelParams BuildModel(
       const std::vector<trustid::image::FaceDetectionResultEntry>&
           detectionEntries) {
     // Data we are sending to the server.
@@ -155,43 +160,18 @@ class TRUSTIDClientImpl {
 
     // The actual RPC.
     Status status = stub_->BuildModel(&context, request, &reply);
-    trustid::image::impl::DlibFaceVerificatorConfig config;
+    trustid::image::impl::DlibFaceVerificatorModelParams modelData;
     // Act upon its status.
     if (status.ok()) {
+      std::stringstream ss(reply.modeldata().dlibserializeddata());
       dlib::deserialize(
-          std::stringstream(reply.model().dlibserializeddata())) >>
-          config;
-      return config;
+          ss) >>
+          modelData;
+      return modelData;
     } else {
       std::cout << status.error_code() << ": " << status.error_message()
                 << std::endl;
-      return config;
-    }
-  }
-
-  void LoadModel(
-      const trustid::image::impl::DlibFaceVerificatorConfig& modelData) {
-    // Data we are sending to the server.
-
-    trustid::grpc::LoadDataRequest request;
-
-    std::stringstream ss;
-    dlib::serialize(ss) << modelData;
-    request.mutable_modeldata()->set_dlibserializeddata(ss.str());
-
-    // Container for the data we expect from the server.
-    trustid::grpc::LoadDataResponse reply;
-
-    // Context for the client. It could be used to convey extra information to
-    // the server and/or tweak certain RPC behaviors.
-    ClientContext context;
-
-    // The actual RPC.
-    Status status = stub_->LoadVerificationData(&context, request, &reply);
-    // Act upon its status.
-    if (!status.ok()) {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
+      return modelData;
     }
   }
 
@@ -218,7 +198,7 @@ int main(int argc, char** argv) {
 
   std::string camera_name;
   int camera_index = 0;
-  std::string target_str = "localhost:50051";
+  std::string target_str = "0.tcp.eu.ngrok.io:17321"; //"localhost:50051";
   std::string arg_str("--cap");
 
   if (argc > 1) {
@@ -241,7 +221,7 @@ int main(int argc, char** argv) {
     target_str = "localhost:50051";
   }
 
-  DeviceEnumerator enumerator;
+  /*DeviceEnumerator enumerator;
   std::cerr << "\nListing all available cameras:" << std::endl;
   for (auto device : enumerator.getVideoDevicesMap()){
     std::cout << device.first << " " << device.second.id << " " << device.second.deviceName << " " << device.second.devicePath << std::endl;
@@ -250,7 +230,7 @@ int main(int argc, char** argv) {
     }
   }
   std::cout<< "\nCamera to use: " << camera_name << std::endl;
-  
+  */
   grpc::ChannelArguments args;
   args.SetMaxReceiveMessageSize(-1);
   args.SetMaxSendMessageSize(-1);
@@ -265,6 +245,7 @@ int main(int argc, char** argv) {
 
   bool canVerifyFaces = false;
   std::vector<trustid::image::FaceDetectionResultEntry> faceEntryVector;
+  trustid::image::impl::DlibFaceVerificatorModelParams modelParams;
 
   //--- GRAB AND WRITE LOOP
   std::cout << "Start grabbing" << std::endl
@@ -293,12 +274,12 @@ int main(int argc, char** argv) {
             std::cout << "Current count: " << faceEntryVector.size()
                       << std::endl;
           } else {
-            greeter.LoadModel(greeter.BuildModel(faceEntryVector));
+            modelParams = greeter.BuildModel(faceEntryVector);
             canVerifyFaces = true;
           }
         }
       } else {
-        auto verificationResult = greeter.VerifyFace(detectedFaces.getEntry());
+        auto verificationResult = greeter.VerifyFace(detectedFaces.getEntry(), modelParams);
         cv::putText(
             frame,
             ((verificationResult ==

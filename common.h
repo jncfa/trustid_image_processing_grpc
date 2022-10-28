@@ -7,7 +7,7 @@
 trustid::grpc::OCVImage* serialize_to_grpc(const cv::Mat item, trustid::grpc::OCVImage* image, bool copyData = true) {
     // check if we should copy the data or not
     if (copyData){
-      PVOID data = malloc(item.total() * item.elemSize());
+      void* data = malloc(item.total() * item.elemSize());
       memcpy(data, item.data, item.total() * item.elemSize());
       image->set_data(data, item.total() * item.elemSize());
     }
@@ -25,7 +25,7 @@ cv::Mat deserialize_from_grpc(const trustid::grpc::OCVImage in, bool copyData = 
   // check if we should copy the data or not
   if (copyData){
     // allocate data in the heap and pass the new pointer to cv::Mat (they will take ownership of the data)
-    PVOID data = malloc(in.data().size());
+    void* data = malloc(in.data().size());
     memcpy(data, in.data().c_str(), in.data().size());
     return cv::Mat(in.height(), in.width(), in.type(), std::move(data), in.step());
   }
@@ -37,7 +37,7 @@ cv::Mat deserialize_from_grpc(const trustid::grpc::OCVImage in, bool copyData = 
 cv::Mat deserialize_from_grpc(const trustid::grpc::OCVImage* in, bool copyData = true) {
   // check if we should copy the data or not
   if (copyData){
-    PVOID data = malloc(in->data().size());
+    void* data = malloc(in->data().size());
     memcpy(data, in->data().c_str(), in->data().size());
 
     // convert to a placeholder vector to store byte data

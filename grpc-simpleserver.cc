@@ -26,10 +26,10 @@
 
 #include "common.h"
 #include "trustid.grpc.pb.h"
-#include "trustid_image_processing/client/client_processor.h"
 #include "trustid_image_processing/serialize.h"
-#include "trustid_image_processing/server/server_processor.h"
 #include "trustid_image_processing/utils.h"
+#include "trustid_image_processing/dlib_impl/face_detector.h"
+#include "trustid_image_processing/dlib_impl/face_verificator.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -40,21 +40,23 @@ using trustid::grpc::TRUSTIDClientProcessor;
 // Logic and data behind the server's behavior.
 class TRUSTIDClientProcessorImpl final
     : public trustid::grpc::TRUSTIDClientProcessor::Service {
-  trustid::image::ClientImageProcessor clientProcessor;
-  trustid::image::ServerImageProcessor serverProcessor;
+  
+  std::shared_ptr<ResNet34> net;
+  std::shared_ptr<dlib::shape_predictor> sp;
+  std::unique_ptr<trustid::image::IFaceDetector> faceDetector;
+  
 
   Status DetectFaces(::grpc::ServerContext *context,
                      const ::trustid::grpc::DetectFacesRequest *request,
                      ::trustid::grpc::DetectFacesResponse *response) override {
 
     try { 
-      std::cout << "Received DetectFace RPC" << std::endl;
-      std::cout << "Image size: " << request->image().data().size() << std::endl;
-      cv::Mat image = deserialize_from_grpc(request->image());
-      //cv::imshow("Live", image);
-      //cv::waitKey(0);
+      auto start = std::chrono::steady_clock().now();
 
-      auto result = clientProcessor.detectFaces(image);
+      //std::cout << "Image size: " << request->image().data().size() << std::endl;
+      cv::Mat image = deserialize_from_grpc(request->image());
+
+      auto result = faceDetector->detectFaces(image);
       
       for (auto entry: result.getBoundingBoxEntries()){
         std::ostringstream ss;
@@ -77,8 +79,9 @@ class TRUSTIDClientProcessorImpl final
           throw std::runtime_error("Unknown result");
           break;
       }
-
-      std::cout << "Processed DetectFace RPC" << std::endl;
+      auto finish = std::chrono::steady_clock().now();
+      auto elapsed = finish - start;
+      std::cout << "DetectFaces took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << std::endl;
       return Status::OK;
     }
     catch (std::exception &e){
@@ -90,13 +93,23 @@ class TRUSTIDClientProcessorImpl final
   Status VerifyFace(::grpc::ServerContext *context,
                     const ::trustid::grpc::VerifyFaceRequest *request,
                     ::trustid::grpc::VerifyFaceResponse *response) override {
-    std::cout << "ReceivedVerifyFace RPC" << std::endl;
-
+    auto start = std::chrono::steady_clock().now();
     trustid::image::FaceDetectionResultEntry parsedRequest;
-    dlib::deserialize(std::istringstream(
-        request->previousdetection().dlibserializeddata())) >>
+    std::istringstream ss(
+        request->previousdetection().dlibserializeddata());
+    dlib::deserialize(ss) >>
         parsedRequest;
-    auto result = clientProcessor.verifyUser(parsedRequest);
+    ss.clear();
+    
+    trustid::image::impl::DlibFaceVerificatorModelParams modelParams;
+    ss.str(request->modeldata().dlibserializeddata());
+    dlib::deserialize(
+        ss) >>
+        modelParams;
+    
+    auto faceVerificator = std::make_unique<trustid::image::impl::DlibFaceVerificator>(net, sp, modelParams);
+    
+    auto result = faceVerificator->verifyUser(parsedRequest);
     switch (result.getResult()) {
       case trustid::image::FaceVerificationResultEnum::SAME_USER:
         response->set_result("SAME_USER");
@@ -111,64 +124,9 @@ class TRUSTIDClientProcessorImpl final
         response->set_confidencescore(result.getMatchConfidence());
         throw std::runtime_error("Unknown result");
     }
-    return Status::OK;
-  }
-
-  Status LoadVerificationData(
-      ::grpc::ServerContext *context,
-      const ::trustid::grpc::LoadDataRequest *request,
-      ::trustid::grpc::LoadDataResponse *response) override {
-    std::cout << "Received LoadVerificationData RPC" << std::endl;
-   
-    trustid::image::impl::DlibFaceVerificatorConfig config;
-    dlib::deserialize(
-        std::stringstream(request->modeldata().dlibserializeddata())) >>
-        config;
-    clientProcessor.loadFaceVerificationData(config);
-    response->set_result(true);
-    return Status::OK;
-  }
-
-  Status EstimateHeadPose(
-      ::grpc::ServerContext *context,
-      const ::trustid::grpc::EstimateHeadPoseRequest *request,
-      ::trustid::grpc::EstimateHeadPoseResponse *response) override {
-    std::cout << "Received EstimateHeadPose RPC" << std::endl;
-    // trustid::image::FaceDetectionResultEntry result;
-    // dlib::deserialize(
-    //     std::istringstream(request->detectionresult().dlibserializeddata()))
-    //     >> result;
-    // auto headPoseEstimation = clientProcessor.estimateHeadPose(result);
-    response->set_result("UNKNOWN");
-
-    // trustid::grpc::HeadPoseResult* poseResult =
-    // response->mutable_headposedata(); auto strbuf = std::istringstream();
-    // dlib::serialize(headPoseEstimation, strbuf);
-    // poseResult->set_dlibserializeddata(strbuf.str());
-
-    return Status::OK;
-  }
-
-  Status CheckImageQuality(
-      ::grpc::ServerContext *context,
-      const ::trustid::grpc::CheckImageQualityRequest *request,
-      ::trustid::grpc::CheckImageQualityResponse *response) override {
-    
-    auto result = clientProcessor.checkImageQuality(
-        deserialize_from_grpc(request->imagetocheck()));
-
-    switch (result) {
-      case trustid::image::utils::ImageQualityResultEnum::LOW_CONTRAST:
-        response->set_result("LOW_CONTRAST");
-        break;
-      case trustid::image::utils::ImageQualityResultEnum::HIGH_CONTRAST:
-        response->set_result("HIGH_CONTRAST");
-        break;
-
-      default:
-        throw std::runtime_error("Unknown result");
-        break;
-    }
+    auto finish = std::chrono::steady_clock().now();
+    auto elapsed = finish - start;
+    std::cout << "VerifyFaces took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << std::endl;
     return Status::OK;
   }
   
@@ -176,33 +134,37 @@ class TRUSTIDClientProcessorImpl final
       ::grpc::ServerContext *context,
       const ::trustid::grpc::BuildModelRequest *request,
       ::trustid::grpc::BuildModelResponse *response) override {
-        
+        auto start = std::chrono::steady_clock().now();
         std::vector<trustid::image::FaceDetectionResultEntry> faceEntryVector;
         faceEntryVector.reserve(request->detectionresults_size());
 
         for (auto& entry : request->detectionresults()) {
           trustid::image::FaceDetectionResultEntry faceEntry;
-          dlib::deserialize(std::stringstream(entry.dlibserializeddata())) >> faceEntry;
+          std::stringstream ss(entry.dlibserializeddata());
+          dlib::deserialize(ss) >> faceEntry;
           faceEntryVector.push_back(faceEntry); 
         }
         
         // build model, grab config and return it
-        auto result = serverProcessor.createVerificationModel(faceEntryVector);
+        auto result = std::make_unique<trustid::image::impl::DlibFaceVerificator>(net, sp, faceEntryVector)->getUserParams();
 
         std::stringstream ss;
-        dlib::serialize(ss) << result->getConfig();
-        response->mutable_model()->set_dlibserializeddata(ss.str());
+        dlib::serialize(ss) << result;
+        response->mutable_modeldata()->set_dlibserializeddata(ss.str());
         response->set_result("MODEL_BUILT");
+        auto finish = std::chrono::steady_clock().now();
+        auto elapsed = finish - start;
+        std::cout << "VerifyFaces took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << std::endl;
         return Status::OK;
       }
  public:
-  TRUSTIDClientProcessorImpl() : clientProcessor(), serverProcessor() {}
+  TRUSTIDClientProcessorImpl() : 
+  net(trustid::image::impl::loadResNet34FromDisk("resources/dlib_face_recognition_resnet_model_v1.dat")), 
+  sp(trustid::image::impl::loadShapePredictorFromDisk("resources/ERT68.dat")),
+  faceDetector(std::make_unique<trustid::image::impl::DlibFaceDetector>()) {}
 };
 
 void RunServer() {
-  //HWND hWnd = GetConsoleWindow();
-  //ShowWindow(hWnd, SW_HIDE);
-
   std::string server_address("0.0.0.0:50051");
   TRUSTIDClientProcessorImpl service;
 

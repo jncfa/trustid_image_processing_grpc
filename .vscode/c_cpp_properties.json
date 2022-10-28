@@ -23,8 +23,8 @@
             "name": "Linux",
             "includePath": [
                 "/usr/local/include/opencv4/**",
-                "${workspaceFolder}/includes/**",
-                "${workspaceFolder}/depends/dlib/**"
+                "${workspaceFolder}/../trustid_image_processing_win/includes/**",
+                "${workspaceFolder}/../trustid_image_processing_win/depends/dlib/**"
             ],
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
