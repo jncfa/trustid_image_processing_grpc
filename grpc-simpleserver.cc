@@ -160,7 +160,7 @@ class TRUSTIDClientProcessorImpl final
  public:
   TRUSTIDClientProcessorImpl() : 
   net(trustid::image::impl::loadResNet34FromDisk("resources/dlib_face_recognition_resnet_model_v1.dat")), 
-  sp(trustid::image::impl::loadShapePredictorFromDisk("resources/ERT68.dat")),
+  sp(trustid::image::impl::loadShapePredictorFromDisk("resources/shape_predictor_5_face_landmarks.dat")),
   faceDetector(std::make_unique<trustid::image::impl::DlibFaceDetector>()) {}
 };
 
